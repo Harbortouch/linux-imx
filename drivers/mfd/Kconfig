@@ -1632,6 +1632,15 @@ config MFD_WM8994
 	  core support for the WM8994, in order to use the actual
 	  functionaltiy of the device other drivers must be enabled.
 
+config MFD_BU26154
+	tristate "ROHM BU26154 Audio CODEC / Touch Screen chips"
+	select MFD_CORE
+	depends on I2C
+	help
+	  If you say yes here you get support for the BU26154 of
+	  Audio CODEC / Touch Screen chips.  These include Audio
+	  CODEC and touch panel features.
+
 config MFD_STW481X
 	tristate "Support for ST Microelectronics STw481x"
 	depends on I2C && (ARCH_NOMADIK || COMPILE_TEST)
