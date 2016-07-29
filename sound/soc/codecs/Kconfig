@@ -45,6 +45,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_ALC5623 if I2C
 	select SND_SOC_ALC5632 if I2C
 	select SND_SOC_BT_SCO
+	select SND_SOC_BU26154 if MFD_BU26154
 	select SND_SOC_CQ0093VC if MFD_DAVINCI_VOICECODEC
 	select SND_SOC_CS35L32 if I2C
 	select SND_SOC_CS35L33 if I2C
@@ -387,6 +388,9 @@ config SND_SOC_ALC5632
 
 config SND_SOC_BT_SCO
 	tristate "Dummy BT SCO codec driver"
+
+config SND_SOC_BU26154
+	tristate "ROHM BU26154 CODEC"
 
 config SND_SOC_CQ0093VC
 	tristate
