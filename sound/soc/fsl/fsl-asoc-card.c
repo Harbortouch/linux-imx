@@ -27,6 +27,7 @@
 #include "../codecs/sgtl5000.h"
 #include "../codecs/wm8962.h"
 #include "../codecs/wm8960.h"
+#include "../codecs/bu26154.h"
 
 #define CS427x_SYSCLK_MCLK 0
 
@@ -562,6 +563,20 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 		codec_dai_name = "ac97-hifi";
 		priv->card.set_bias_level = NULL;
 		priv->dai_fmt = SND_SOC_DAIFMT_AC97;
+	} else if (of_device_is_compatible(np, "fsl,imx-audio-bu26154")) {
+		/*
+		 * Since the BU26154 device connected through I2C is MFD,
+		 * reassign the codec driver to codec_np here.
+		 */
+		codec_np = of_get_child_by_name(codec_np, "audiocodec");
+		if (!codec_np) {
+			dev_err(&pdev->dev, "failed to find codec platform device\n");
+			ret = -EINVAL;
+			goto asrc_fail;
+		}
+		codec_dai_name = "bu26154";
+		priv->codec_priv.mclk_id = BU26154_SYSCLK_MCLK;
+		priv->dai_fmt |= SND_SOC_DAIFMT_CBM_CFM;
 	} else {
 		dev_err(&pdev->dev, "unknown Device Tree compatible\n");
 		ret = -EINVAL;
@@ -702,6 +717,7 @@ static const struct of_device_id fsl_asoc_card_dt_ids[] = {
 	{ .compatible = "fsl,imx-audio-sgtl5000", },
 	{ .compatible = "fsl,imx-audio-wm8962", },
 	{ .compatible = "fsl,imx-audio-wm8960", },
+	{ .compatible = "fsl,imx-audio-bu26154", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, fsl_asoc_card_dt_ids);
