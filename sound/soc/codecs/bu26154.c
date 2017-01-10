@@ -213,11 +213,54 @@ static int playback_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+int bu26154_get_volsw_range(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct bu26154 *bu26154 = dev_get_drvdata(codec->dev->parent);
+	int ret;
+
+	bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+	ret = snd_soc_get_volsw_range(kcontrol, ucontrol);
+	bu26154_map_unlock(bu26154);
+	return ret;
+}
+
+int bu26154_put_volsw_range(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct bu26154 *bu26154 = dev_get_drvdata(codec->dev->parent);
+	int ret;
+
+	bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+	ret = snd_soc_put_volsw_range(kcontrol, ucontrol);
+	bu26154_map_unlock(bu26154);
+	return ret;
+}
+
 static const DECLARE_TLV_DB_MINMAX_MUTE(digital_tlv, -7200, 0);
 
 static const struct snd_kcontrol_new bu26154_snd_controls[] = {
-	SOC_SINGLE_RANGE_TLV("Digital Playback Volume", BU26154_PDIG_VOL_REG,
-			     0, 0x6f, 0xff, 0, digital_tlv),
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name = "Digital Playback Volume",
+		.access = SNDRV_CTL_ELEM_ACCESS_TLV_READ | SNDRV_CTL_ELEM_ACCESS_READWRITE,
+		.tlv.p = digital_tlv,
+		.info = snd_soc_info_volsw_range,
+		.get = bu26154_get_volsw_range,
+		.put = bu26154_put_volsw_range,
+		.private_value = (unsigned long)&(struct soc_mixer_control) {
+			.reg = BU26154_PDIG_VOL_REG,
+			.rreg = BU26154_PDIG_VOL_REG,
+			.shift = 0,
+			.rshift = 0,
+			.min = 0x6f,
+			.max = 0xff,
+			.platform_max = 0xff,
+			.invert = 0
+		}
+	},
 };
 
 static const struct snd_soc_dapm_widget bu26154_dapm_widgets[] = {
