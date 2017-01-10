@@ -51,6 +51,7 @@
 #define BU26154_DVCR_REG			0x68
 #define BU26154_MUXVOL_REG			0x6a
 #define BU26154_EFCVOL_REG			0x70
+#define BU26154_ZDSR_REG			0xdc
 
 /* MAPCON = 0x1 */
 #define BU26154_FPLL_M_REG			0x02
@@ -125,6 +126,10 @@
 #define BU26154_MUXVOL_DVFCON			(BIT(7)|BIT(6)|BIT(5)|BIT(4))
 #define BU26154_MUXVOL_RMCON			(BIT(3)|BIT(2))
 #define BU26154_MUXVOL_LMCON			(BIT(1)|BIT(0))
+
+/* Zero Detection Setting Register bitfields */
+#define BU26154_ZDSR_ZDTIME			(BIT(7)|BIT(6)|BIT(5)|BIT(4))
+#define BU26154_ZDSR_ZDEN			BIT(0)
 
 /* Analog Reference Power Management Register bitfields */
 #define BU26154_VMID_HPREN			BIT(7)

@@ -425,6 +425,13 @@ static int bu26154_codec_probe(struct snd_soc_codec *codec)
 	bu26154_reg_set_bits(bu26154, BU26154_DAC_POW_REG,
 			     BU26154_DAC_POW_DACREN | BU26154_DAC_POW_DACLEN);
 
+	/*
+	 * FIXME
+	 * This should be enabled only when we use Speaker-amp.
+	 */
+	/* Enable Zero Detection */
+	bu26154_reg_write(bu26154, BU26154_ZDSR_REG, BU26154_ZDSR_ZDEN);
+
 	/* Power on Speaker-amp */
 	bu26154_reg_write(bu26154, BU26154_SPAMP_POW_REG,
 			  BU26154_SPAMP_POW_SPEN |
