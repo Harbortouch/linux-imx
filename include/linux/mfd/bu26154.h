@@ -40,6 +40,7 @@
 #define BU26154_VMID_REG			0x20
 #define BU26154_DAC_POW_REG			0x24
 #define BU26154_SPAMP_POW_REG			0x26
+#define BU26154_THERMAL_REG			0x2c
 #define BU26154_AVOL_CR_REG			0x3a
 #define BU26154_PDIG_VOL_REG			0x3e
 #define BU26154_DACCLK_REG			0x58
@@ -68,6 +69,10 @@
 #define BU26154_TS_TOUTCHAD2			0x64
 #define BU26154_SPAMP_ICR_REG			0x84
 #define BU26154_LPFCR_REG			0xa0
+
+/* MAPCON = 0x2 */
+#define BU26154_AUDCR2_REG			0x04
+#define BU26154_AUDCR1_REG			0x12
 
 /*
  * List of register bitfields for component BU26154
@@ -149,14 +154,23 @@
 #define BU26154_SPAMP_POW_SPEN			BIT(1)
 #define BU26154_SPAMP_POW_AVLEN			BIT(0)
 
+/* Thermal Shutdown Control Register bitfields */
+#define BU26154_THERMAL_TSDEN			BIT(0)
+
 /* Speaker Amplifier Input Control Register bitfields */
 #define BU26154_SPAMP_ICR_SPIN2EN		BIT(3)
 #define BU26154_SPAMP_ICR_SPIN1EN		BIT(2)
 #define BU26154_SPAMP_ICR_SPVOL			(BIT(1)|BIT(0))
 
-/* Play Programable LPF Setting Register */
+/* Play Programable LPF Setting Register bitfields */
 #define BU26154_LPFCR_PLPFOD			BIT(1)
 #define BU26154_LPFCR_PLPFEN			BIT(0)
+
+/* Audio Analog Control2 Register bitfields */
+#define BU26154_AUDCR2_HPLSEN			BIT(2)
+
+/* Audio Analog Control1 Register bitfields */
+#define BU26154_AUDCR1_AREF1EN			BIT(0)
 
 /*
  * List of register values for component BU26154

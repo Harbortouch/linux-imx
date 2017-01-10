@@ -17,6 +17,7 @@
 #include <linux/gpio.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/pm_runtime.h>
 #include <sound/core.h>
 #include <sound/jack.h>
 #include <sound/pcm.h>
@@ -191,6 +192,49 @@ static inline int __configure_fpll(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static int bu26154_codec_init(struct bu26154 *bu26154)
+{
+	/* Ensure MAPCON register points to MAP0 */
+	bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+
+	/* Enable MCLK clock */
+	bu26154_reg_set_bits(bu26154, BU26154_CLKEN_REG, BU26154_CLKEN_MCLKEN);
+
+	/* Power on DAC-LR */
+	bu26154_reg_set_bits(bu26154, BU26154_DAC_POW_REG,
+			     BU26154_DAC_POW_DACREN | BU26154_DAC_POW_DACLEN);
+
+	/*
+	 * FIXME
+	 * This should be enabled only when we use Speaker-amp.
+	 */
+	/* Enable Zero Detection */
+	bu26154_reg_write(bu26154, BU26154_ZDSR_REG, BU26154_ZDSR_ZDEN);
+
+	/* Power on Speaker-amp */
+	bu26154_reg_write(bu26154, BU26154_SPAMP_POW_REG,
+			  BU26154_SPAMP_POW_SPEN |
+			  BU26154_SPAMP_POW_AVREN |
+			  BU26154_SPAMP_POW_AVLEN |
+			  BIT(2));
+
+	/* Initial Volume setting */
+	bu26154_reg_write(bu26154, BU26154_PDIG_VOL_REG, 0xa0);
+
+	/* Change MAPCON to MAP1 */
+	bu26154_set_map(bu26154, BU26154_MAPCON_MAP1);
+
+	/* Connect L/Rch volume(12dB) to a speaker amplifier */
+	bu26154_reg_write(bu26154, BU26154_SPAMP_ICR_REG, 0x0e);
+
+	/* Power on VMID */
+	__vmid_power(bu26154, true);
+
+	bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
+
+	return 0;
+}
+
 static int playback_event(struct snd_soc_dapm_widget *w,
 				struct snd_kcontrol *kcontrol, int event)
 {
@@ -269,13 +313,6 @@ static const struct snd_soc_dapm_widget bu26154_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("SPKOUTL"),
 	SND_SOC_DAPM_OUTPUT("SPKOUTR"),
 };
-
-static int vmid_power(struct bu26154 *bu26154, bool on)
-{
-	bu26154_map_lock(bu26154);
-	__vmid_power(bu26154, on);
-	bu26154_map_unlock(bu26154);
-}
 
 static int bu26154_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params,
@@ -450,55 +487,20 @@ static struct snd_soc_dai_driver bu26154_dai = {
 static int bu26154_codec_probe(struct snd_soc_codec *codec)
 {
 	struct bu26154 *bu26154 = dev_get_drvdata(codec->dev->parent);
+	struct bu26154_audio_priv *priv = snd_soc_codec_get_drvdata(codec);
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int ret;
 
-	/* Ensure MAPCON register points to MAP0 */
-	ret = bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+	ret = bu26154_codec_init(bu26154);
 	if (ret) {
-		dev_err(codec->dev, "%s: BU26154_MAPCON reg write failed(MAP0)\n",
+		dev_err(codec->dev, "%s: BU26154 init failed\n",
 			__func__);
 		return ret;
 	}
 
-	/* Enable MCLK clock */
-	bu26154_reg_set_bits(bu26154, BU26154_CLKEN_REG, BU26154_CLKEN_MCLKEN);
-
-	/* Power on DAC-LR */
-	bu26154_reg_set_bits(bu26154, BU26154_DAC_POW_REG,
-			     BU26154_DAC_POW_DACREN | BU26154_DAC_POW_DACLEN);
-
-	/*
-	 * FIXME
-	 * This should be enabled only when we use Speaker-amp.
-	 */
-	/* Enable Zero Detection */
-	bu26154_reg_write(bu26154, BU26154_ZDSR_REG, BU26154_ZDSR_ZDEN);
-
-	/* Power on Speaker-amp */
-	bu26154_reg_write(bu26154, BU26154_SPAMP_POW_REG,
-			  BU26154_SPAMP_POW_SPEN |
-			  BU26154_SPAMP_POW_AVREN |
-			  BU26154_SPAMP_POW_AVLEN |
-			  BIT(2));
-
-	/* Initial Volume setting */
-	bu26154_reg_write(bu26154, BU26154_PDIG_VOL_REG, 0xa0);
-
-	/* Change MAPCON to MAP1 */
-	bu26154_set_map(bu26154, BU26154_MAPCON_MAP1);
-
-	/* Connect L/Rch volume(12dB) to a speaker amplifier */
-	bu26154_reg_write(bu26154, BU26154_SPAMP_ICR_REG, 0x0e);
-
-	bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
-
-	/* Power on VMID */
-	vmid_power(bu26154, true);
-
+	priv->codec = codec;
 	snd_soc_dapm_new_controls(dapm, bu26154_dapm_widgets,
 				  ARRAY_SIZE(bu26154_dapm_widgets));
-
 	return 0;
 }
 
@@ -532,7 +534,6 @@ static int bu26154_audio_probe(struct platform_device *pdev)
 	struct bu26154 *bu26154 = dev_get_drvdata(pdev->dev.parent);
 	struct bu26154_audio_priv *priv;
 	struct bu26154_audio_data *pdata;
-	int ret;
 
 	pdata = dev_get_platdata(bu26154->dev);
 	if (!pdata) {
@@ -558,20 +559,99 @@ static int bu26154_audio_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_OF
+#ifdef CONFIG_PM_SLEEP
+static int bu26154_audio_suspend(struct device *dev)
+{
+	struct bu26154 *bu26154 = dev_get_drvdata(dev->parent);
+
+	if (pm_runtime_suspended(dev))
+		return 0;
+
+	bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+	/* Disable Thermal Shutdown */
+	bu26154_reg_clear_bits(bu26154, BU26154_THERMAL_REG, BU26154_THERMAL_TSDEN);
+	bu26154_set_map(bu26154, BU26154_MAPCON_MAP2);
+	/* Disable Headphone level shifter */
+	bu26154_reg_clear_bits(bu26154, BU26154_AUDCR2_REG, BU26154_AUDCR2_HPLSEN);
+	/* Disable Audio Reference */
+	bu26154_reg_clear_bits(bu26154, BU26154_AUDCR1_REG, BU26154_AUDCR1_AREF1EN);
+	bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
+
+	return 0;
+}
+
+static int bu26154_audio_resume(struct device *dev)
+{
+	struct bu26154 *bu26154 = dev_get_drvdata(dev->parent);
+
+	if (!pm_runtime_suspended(dev)) {
+		bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+		/* Enable Thermal Shutdown */
+		bu26154_reg_set_bits(bu26154, BU26154_THERMAL_REG, BU26154_THERMAL_TSDEN);
+		bu26154_set_map(bu26154, BU26154_MAPCON_MAP2);
+		/* Enable Headphone level shifter */
+		bu26154_reg_set_bits(bu26154, BU26154_AUDCR2_REG, BU26154_AUDCR2_HPLSEN);
+		/* Enable Audio Reference */
+		bu26154_reg_set_bits(bu26154, BU26154_AUDCR1_REG, BU26154_AUDCR1_AREF1EN);
+		bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
+	}
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_PM
+static int bu26154_runtime_suspend(struct device *dev)
+{
+	struct bu26154 *bu26154 = dev_get_drvdata(dev->parent);
+
+	bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+	/* Disable Thermal Shutdown */
+	bu26154_reg_clear_bits(bu26154, BU26154_THERMAL_REG, BU26154_THERMAL_TSDEN);
+	bu26154_set_map(bu26154, BU26154_MAPCON_MAP2);
+	/* Disable Headphone level shifter */
+	bu26154_reg_clear_bits(bu26154, BU26154_AUDCR2_REG, BU26154_AUDCR2_HPLSEN);
+	/* Disable Audio Reference */
+	bu26154_reg_clear_bits(bu26154, BU26154_AUDCR1_REG, BU26154_AUDCR1_AREF1EN);
+	bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
+
+	return 0;
+}
+
+static int bu26154_runtime_resume(struct device *dev)
+{
+	struct bu26154 *bu26154 = dev_get_drvdata(dev->parent);
+
+	bu26154_set_map_lock(bu26154, BU26154_MAPCON_MAP0);
+	/* Enable Thermal Shutdown */
+	bu26154_reg_set_bits(bu26154, BU26154_THERMAL_REG, BU26154_THERMAL_TSDEN);
+	bu26154_set_map(bu26154, BU26154_MAPCON_MAP2);
+	/* Enable Headphone level shifter */
+	bu26154_reg_set_bits(bu26154, BU26154_AUDCR2_REG, BU26154_AUDCR2_HPLSEN);
+	/* Enable Audio Reference */
+	bu26154_reg_set_bits(bu26154, BU26154_AUDCR1_REG, BU26154_AUDCR1_AREF1EN);
+	bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
+
+	return 0;
+}
+#endif
+
+static struct dev_pm_ops bu26154_audio_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(bu26154_audio_suspend, bu26154_audio_resume)
+	SET_RUNTIME_PM_OPS(bu26154_runtime_suspend, bu26154_runtime_resume, NULL)
+};
+
 static const struct of_device_id bu26154_audio_ids[] = {
 	{ .compatible = "rohm,bu26154-audio", },
-	{ },
+	{ }
 };
-#endif
+MODULE_DEVICE_TABLE(of, bu26154_audio_ids);
 
 static struct platform_driver bu26154_audio_driver = {
 	.driver	= {
 		.name = "bu26154-audio",
 		.owner = THIS_MODULE,
-#ifdef CONFIG_OF
-		.of_match_table = of_match_ptr(bu26154_audio_ids),
-#endif
+		.of_match_table = bu26154_audio_ids,
+		.pm = &bu26154_audio_pm,
 	},
 	.probe = bu26154_audio_probe,
 	.remove = bu26154_audio_remove,
