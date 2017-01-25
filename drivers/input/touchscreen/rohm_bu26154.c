@@ -146,26 +146,32 @@ static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *
 		return error;
 	}
 
+	/* Enable the touch interface and switch to Normal Operation mode */
+	bu26154_reg_set_bits(bu26154, BU26154_TS_ADCCR_REG,
+			     (BU26154_TADC_CR_TCHEN | BU26154_TADC_CR_TCHA2));
+
 	/* Read XYZ coordinates */
 	for (i = 0; i < 4; i++) {
 		u8 ad[2];
-		u8 val = BU26154_TADC_CR_TCHEN;
+		unsigned val;
 
 		if (i == 0)
-			val |= TADC_CONV_X;
+			val = TADC_CONV_X;
 		else if (i == 1)
-			val |= TADC_CONV_Y;
+			val = TADC_CONV_Y;
 		else if (i == 2)
-			val |= TADC_CONV_Z1;
+			val = TADC_CONV_Z1;
 		else
-			val |= TADC_CONV_Z2;
+			val = TADC_CONV_Z2;
 
 		bu26154_reg_update_bits(bu26154, BU26154_TS_ADCCR_REG,
-					(BU26154_TADC_CR_TCHEN |
-					 BU26154_TADC_CR_TCHA1 |
-					 BU26154_TADC_CR_TCHA0), val);
+					(BU26154_TADC_CR_TCHA1 |
+					 BU26154_TADC_CR_TCHA0), (u8)val);
 
-		udelay(43); /* wait for ADC conversion */
+		/* XXX read and discard the last result to start AD conversion */
+		bu26154_reg_read(bu26154, BU26154_TS_TOUTCHAD2, &val);
+
+		udelay(43); /* wait for AD conversion */
 		bu26154_block_read(bu26154, BU26154_TS_TOUTCHAD1, 2, ad);
 		buf[i] = (ad[0] << 4) | (ad[1] >> 4);
 	}
