@@ -20,6 +20,10 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 
+#ifdef CONFIG_BU26154_MAF
+#include <linux/sort.h>
+#endif
+
 #define PEN_DOWN_INTR		0
 #define PEN_UP_DEFAULT		msecs_to_jiffies(30)
 #define PERIOD_TIME_DEFAULT	2
@@ -132,6 +136,18 @@ static int bu26154_ts_leave_low_power(struct bu26154_ts_data *data)
 	return bu26154_ts_update_power_state(data);
 }
 
+#ifdef CONFIG_BU26154_MAF
+static int cmp_ads(const void *lhs, const void *rhs)
+{
+	unsigned lhs_val = *(const unsigned *)(lhs);
+	unsigned rhs_val = *(const unsigned *)(rhs);
+
+	if (lhs_val < rhs_val) return -1;
+	if (lhs_val > rhs_val) return 1;
+	return 0;
+}
+#endif
+
 static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *buf)
 {
 	struct bu26154 *bu26154 = data->mfd;
@@ -148,8 +164,14 @@ static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *
 
 	/* Read XYZ coordinates */
 	for (i = 0; i < 4; i++) {
-		u8 ad[2];
 		unsigned val;
+#ifdef CONFIG_BU26154_MAF
+		unsigned sample[CONFIG_BU26154_MAF_SAMPLE];
+		u8 ad[CONFIG_BU26154_MAF_SAMPLE][2];
+		int j, mid;
+#else
+		u8 ad[2];
+#endif
 
 		if (i == 0)
 			val = TADC_CONV_X;
@@ -171,18 +193,33 @@ static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *
 		/* XXX read and discard the last result to start AD conversion */
 		bu26154_reg_read(bu26154, BU26154_TS_TOUTCHAD2, &val);
 
-		udelay(43); /* wait for AD conversion */
-		bu26154_block_read(bu26154, BU26154_TS_TOUTCHAD1, 2, ad);
+#ifdef CONFIG_BU26154_MAF
+		for (j = 0; j < CONFIG_BU26154_MAF_SAMPLE; j++) {
+			udelay(43); /* wait for AD conversion */
+			bu26154_block_read(bu26154, BU26154_TS_TOUTCHAD1, 2, ad[j]);
+			sample[j] = (ad[j][0] << 4) | (ad[j][1] >> 4);
+		}
 
+		sort(sample, ARRAY_SIZE(sample), sizeof(sample[0]), &cmp_ads, NULL);
+		if (!sample[0]) {
+			bu26154_reg_write(bu26154, BU26154_TS_ADCCR_REG, TADC_CR_INIT);
+			break;
+		}
+		mid = ARRAY_SIZE(sample) / 2;
+		buf[i] = (sample[mid] + sample[mid + 1] + sample[mid + 2]) / 3;
+#else
+		bu26154_block_read(bu26154, BU26154_TS_TOUTCHAD1, 2, ad);
+		buf[i] = (ad[0] << 4) | (ad[1] >> 4);
+#endif
 		/*
 		 * XP and YP lines are Hi-Z if not touched during ADC.
 		 * So we have to discard the results when IRQB is not asserted.
 		 */
 		bu26154_reg_write(bu26154, BU26154_TS_ADCCR_REG, TADC_CR_INIT);
-		if (gpio_get_value(data->chip->touch_pin))
+		if (gpio_get_value(data->chip->touch_pin)) {
+			buf[i] = 0;
 			break;
-
-		buf[i] = (ad[0] << 4) | (ad[1] >> 4);
+		}
 	}
 
 	/* Return back to MAP0 */

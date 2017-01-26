@@ -162,7 +162,7 @@ config TOUCHSCREEN_BU21013
 	  To compile this driver as a module, choose M here: the
 	  module will be called bu21013_ts.
 
-config TOUCHSCREEN_BU26154
+menuconfig TOUCHSCREEN_BU26154
 	tristate "BU26154 based touch panel controllers"
 	depends on I2C
 	help
@@ -173,6 +173,27 @@ config TOUCHSCREEN_BU26154
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called bu26154_ts.
+
+if TOUCHSCREEN_BU26154
+
+config BU26154_MAF
+	bool "Software MAF support"
+	default n
+	help
+	  This option enables software-emulated MAF(Median Average Filter),
+	  which is implemented by hardware on other ROHM chips such like
+	  BU21025, in order to avoid the ADC noise.
+	  Software MAF probably affects touch performance and cause slow
+	  response.
+
+config BU26154_MAF_SAMPLE
+	int "Software MAF sampling number"
+	depends on BU26154_MAF
+	range 5 25
+	default 5
+	help
+	  Set Software MAF sampling number.
+endif
 
 config TOUCHSCREEN_CHIPONE_ICN8318
 	tristate "chipone icn8318 touchscreen controller"
