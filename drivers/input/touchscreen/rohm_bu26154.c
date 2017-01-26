@@ -146,10 +146,6 @@ static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *
 		return error;
 	}
 
-	/* Enable the touch interface and switch to Normal Operation mode */
-	bu26154_reg_set_bits(bu26154, BU26154_TS_ADCCR_REG,
-			     (BU26154_TADC_CR_TCHEN | BU26154_TADC_CR_TCHA2));
-
 	/* Read XYZ coordinates */
 	for (i = 0; i < 4; i++) {
 		u8 ad[2];
@@ -164,6 +160,10 @@ static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *
 		else
 			val = TADC_CONV_Z2;
 
+		/* Enable the touch interface and switch to Normal Operation mode */
+		bu26154_reg_set_bits(bu26154, BU26154_TS_ADCCR_REG,
+				     (BU26154_TADC_CR_TCHEN | BU26154_TADC_CR_TCHA2));
+
 		bu26154_reg_update_bits(bu26154, BU26154_TS_ADCCR_REG,
 					(BU26154_TADC_CR_TCHA1 |
 					 BU26154_TADC_CR_TCHA0), (u8)val);
@@ -173,11 +173,18 @@ static int bu26154_read_coordinates(struct bu26154_ts_data *data, unsigned int *
 
 		udelay(43); /* wait for AD conversion */
 		bu26154_block_read(bu26154, BU26154_TS_TOUTCHAD1, 2, ad);
+
+		/*
+		 * XP and YP lines are Hi-Z if not touched during ADC.
+		 * So we have to discard the results when IRQB is not asserted.
+		 */
+		bu26154_reg_write(bu26154, BU26154_TS_ADCCR_REG, TADC_CR_INIT);
+		if (gpio_get_value(data->chip->touch_pin))
+			break;
+
 		buf[i] = (ad[0] << 4) | (ad[1] >> 4);
 	}
 
-	/* Restore TADC Control Register to the initial value */
-	bu26154_reg_write(bu26154, BU26154_TS_ADCCR_REG, TADC_CR_INIT);
 	/* Return back to MAP0 */
 	bu26154_set_map_unlock(bu26154, BU26154_MAPCON_MAP0);
 	return 0;
@@ -234,7 +241,7 @@ static inline void calibrate(int *x, int *y)
 
 static int bu26154_do_touch_report(struct bu26154_ts_data *data)
 {
-	unsigned int x, y, z1, z2, z, buf[4];
+	unsigned int x, y, z1, z2, z, buf[4] = {0};
 
 	if (bu26154_read_coordinates(data, buf))
 		return -EINVAL;
@@ -289,7 +296,9 @@ static irqreturn_t bu26154_gpio_irq(int irq, void *device_data)
 	struct device *dev = &data->in_dev->dev;
 	int retval;
 
-	do {
+	data->intr_pin = gpio_get_value(data->chip->touch_pin);
+
+	while (!data->intr_pin && !data->touch_stopped) {
 		retval = bu26154_do_touch_report(data);
 		if (retval < 0) {
 			dev_err(dev, "bu26154_do_touch_report failed\n");
@@ -303,7 +312,7 @@ static irqreturn_t bu26154_gpio_irq(int irq, void *device_data)
 		} else {
 			mod_timer(&data->timer, jiffies);
 		}
-	} while (!data->intr_pin && !data->touch_stopped);
+	}
 
 	return IRQ_HANDLED;
 }
