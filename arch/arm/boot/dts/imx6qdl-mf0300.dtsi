@@ -33,7 +33,7 @@
 		/* Reconfig to power key in Android*/
 		power {
 			label = "Power Button";
-			gpios = <&gpio2 27 1>;
+			gpios = <&gpio2 27 GPIO_ACTIVE_HIGH>;
 			linux,code = <116>; /* KEY_POWER */
 			gpio-key,wakeup;
 		};
@@ -576,8 +576,6 @@
 		pinctrl_mlb: mlb {
 			fsl,pins = <
 				MX6QDL_PAD_ENET_TXD1__MLB_CLK 0x80000000
-				MX6QDL_PAD_GPIO_6__MLB_SIG    0x80000000
-				MX6QDL_PAD_GPIO_2__MLB_DATA   0x80000000
 			>;
 		};
 
@@ -746,10 +744,6 @@
 };
 
 &pcie {
-	status = "okay";
-};
-
-&snvs_poweroff {
 	status = "okay";
 };
 
