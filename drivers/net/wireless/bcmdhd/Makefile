@@ -92,7 +92,9 @@ DHDCFLAGS += -DWL_VIRTUAL_APSTA
 # platform type
 # imx: NXP iMX platform
 ##########################
-DHDPLATFORM ?= imx
+ifneq ($(CONFIG_BCM433x), y)
+  DHDPLATFORM ?= imx
+endif
 ifeq ($(DHDPLATFORM), imx)
   DHDCFLAGS += -DCONFIG_DTS -DCUSTOMER_IMX
 else
@@ -174,7 +176,7 @@ endif
 # y: enable
 # n: disable
 ##########################
-DHDTXGLOM ?= n
+DHDTXGLOM ?= y
 ifeq ($(DHDTXGLOM), y)
   MAX_TXGLOM ?= 32
   DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
