@@ -476,4 +476,25 @@ struct ion_handle *ion_handle_get_by_id_wrap(struct ion_client *client,
 					       int id);
 struct device *ion_device_get_by_client(struct ion_client *client);
 
+/**
+ * __ion_alloc - allocate ion memory
+ * @client:		the client
+ * @len:		size of the allocation in bytes
+ * @align:		requested allocation alignment, lots of hardware blocks
+ *			have alignment requirements of some kind
+ * @heap_id_mask:	mask of heaps to allocate from, if multiple bits are set
+ *			heaps will be tried in order from highest to lowest
+ *			id
+ * @flags:		heap flags, the low 16 bits are consumed by ion, the
+ *			high 16 bits are passed on to the respective heap and
+ *			can be heap custom
+ * @grab_handle:	increment handle refcount flag
+ *
+ * Allocate memory in one of the heaps provided in heap mask and return
+ * an opaque handle to it.
+ */
+struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
+			       size_t align, unsigned int heap_id_mask,
+			       unsigned int flags, bool grab_handle);
+
 #endif /* _ION_PRIV_H */
