@@ -139,6 +139,7 @@ struct ion_client {
 /**
  * ion_handle - a client local reference to a buffer
  * @ref:		reference count
+ * @user_ref_count:	user reference count
  * @client:		back pointer to the client the buffer resides in
  * @buffer:		pointer to the buffer
  * @node:		node in the client's handle rbtree
@@ -150,6 +151,7 @@ struct ion_client {
  */
 struct ion_handle {
 	struct kref ref;
+	unsigned int user_ref_count;
 	struct ion_client *client;
 	struct ion_buffer *buffer;
 	struct rb_node node;
@@ -496,5 +498,25 @@ struct device *ion_device_get_by_client(struct ion_client *client);
 struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 			       size_t align, unsigned int heap_id_mask,
 			       unsigned int flags, bool grab_handle);
+
+/**
+ * ion_pass_to_user - pass a kref to the user ref count
+ * @handle:	the handle to pass
+ *
+ * Pass a kref to the user ref count with no need to reverify handle,
+ * because we're holding a kref to the object before and after this call
+ * and returns that handle or -PTR_ERR.
+ */
+struct ion_handle *ion_pass_to_user(struct ion_handle *handle);
+
+/**
+ * user_ion_free_nolock - safely free a handle
+ * @client:	the client
+ * @handle:	the handle to free
+ *
+ * Free the provided handle holding a client lock. Will be executed
+ * only if handle is valid and user has access to this handle.
+ */
+void user_ion_free_nolock(struct ion_client *client, struct ion_handle *handle);
 
 #endif /* _ION_PRIV_H */
